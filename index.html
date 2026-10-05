@@ -3,20 +3,46 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>EquiTrack Dashboard</title>
     
-    <!-- PWA Manifest for Android/Chrome to force full-screen standalone mode -->
-    <link rel="manifest" href='data:application/manifest+json,{"name":"EquiTrack","short_name":"EquiTrack","start_url":".","display":"standalone","background_color":"#f9fafb","theme_color":"#2563EB"}'>
-    
-    <!-- App Icons and Mobile Web App Meta Tags for iOS Safari -->
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%232563EB'/%3E%3Csvg x='106' y='106' width='300' height='300' viewBox='0 0 24 24'%3E%3Cpath fill='%23ffffff' d='M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z'/%3E%3C/svg%3E%3C/svg%3E" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%232563EB'/%3E%3Csvg x='106' y='106' width='300' height='300' viewBox='0 0 24 24'%3E%3Cpath fill='%23ffffff' d='M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z'/%3E%3C/svg%3E%3C/svg%3E">
+    <!-- App Icons and Mobile Web App Meta Tags -->
     <meta name="apple-mobile-web-app-title" content="EquiTrack">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#2563EB">
+    
+    <!-- Dynamic Manifest to lock the exact URL and prevent Safari/Chrome from bouncing out -->
+    <link id="app-manifest" rel="manifest">
+    <script>
+        (function() {
+            // Netlify handles URLs beautifully, but this guarantees the app locks to whatever URL Netlify gives you
+            var currentUrl = window.location.href.split('#')[0].split('?')[0];
+            if (!currentUrl.endsWith('/')) {
+                currentUrl += '/';
+            }
+            var manifest = {
+                "name": "EquiTrack",
+                "short_name": "EquiTrack",
+                "start_url": currentUrl,
+                "display": "standalone",
+                "background_color": "#f9fafb",
+                "theme_color": "#2563EB",
+                "icons": [{
+                    "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%232563EB'/%3E%3Csvg x='106' y='106' width='300' height='300' viewBox='0 0 24 24'%3E%3Cpath fill='%23ffffff' d='M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z'/%3E%3C/svg%3E%3C/svg%3E",
+                    "sizes": "512x512",
+                    "type": "image/svg+xml",
+                    "purpose": "any maskable"
+                }]
+            };
+            var blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+            document.getElementById('app-manifest').href = URL.createObjectURL(blob);
+        })();
+    </script>
+
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%232563EB'/%3E%3Csvg x='106' y='106' width='300' height='300' viewBox='0 0 24 24'%3E%3Cpath fill='%23ffffff' d='M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z'/%3E%3C/svg%3E%3C/svg%3E" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%232563EB'/%3E%3Csvg x='106' y='106' width='300' height='300' viewBox='0 0 24 24'%3E%3Cpath fill='%23ffffff' d='M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z'/%3E%3C/svg%3E%3C/svg%3E">
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>

@@ -3,36 +3,40 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>EquiTrack Dashboard</title>
+    
+    <!-- App Icons and Mobile Web App Meta Tags (PWA features) -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%232563EB'/%3E%3Csvg x='106' y='106' width='300' height='300' viewBox='0 0 24 24'%3E%3Cpath fill='%23ffffff' d='M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z'/%3E%3C/svg%3E%3C/svg%3E" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%232563EB'/%3E%3Csvg x='106' y='106' width='300' height='300' viewBox='0 0 24 24'%3E%3Cpath fill='%23ffffff' d='M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z'/%3E%3C/svg%3E%3C/svg%3E">
+    <meta name="apple-mobile-web-app-title" content="EquiTrack">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#2563EB">
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Material Icons (Google) -->
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <!-- Native Lucide Icons Script -->
+    <script src="https://unpkg.com/lucide@latest"></script>
     
-    <!-- React & ReactDOM -->
+    <!-- React & Recharts -->
     <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
-    
-    <!-- PropTypes (Required for Recharts) -->
     <script crossorigin src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
-    
-    <!-- Recharts for Data Visualization -->
     <script crossorigin src="https://unpkg.com/recharts@2.12.0/umd/Recharts.min.js"></script>
-    
-    <!-- Babel for on-the-fly JSX compilation -->
     <script crossorigin src="https://unpkg.com/@babel/standalone@7.23.9/babel.min.js"></script>
     
     <style>
         body { 
             font-family: 'Inter', system-ui, -apple-system, sans-serif; 
             background-color: #f9fafb; 
+            -webkit-tap-highlight-color: transparent;
         }
-        .material-icons { 
-            vertical-align: middle; 
-            line-height: 1;
+        /* Mobile scrolling improvements */
+        .overflow-x-auto {
+            -webkit-overflow-scrolling: touch;
         }
     </style>
 </head>
@@ -40,11 +44,9 @@
     <div id="root"></div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // Your exact Firebase configuration
         const firebaseConfig = {
             apiKey: "AIzaSyDbi0J9HwoJ656Et6OYCdLpcea2t2_8vRU",
             authDomain: "equitrack-23164.firebaseapp.com",
@@ -57,12 +59,9 @@
 
         try {
             const app = initializeApp(firebaseConfig);
-            const auth = getAuth(app);
             const db = getFirestore(app);
 
-            window.firebaseAPI = {
-                auth, db, signInAnonymously, onAuthStateChanged, doc, setDoc, onSnapshot
-            };
+            window.firebaseAPI = { db, doc, setDoc, onSnapshot };
         } catch (error) {
             console.error("Firebase Initialization Error:", error);
             window.firebaseError = error.message;
@@ -73,26 +72,48 @@
     </script>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, useRef } = React;
         const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } = window.Recharts || {};
+
+        // Custom Component to securely render original Lucide icons
+        const LucideIcon = ({ name, size = 24, className = "" }) => {
+            const spanRef = useRef(null);
+            
+            useEffect(() => {
+                if (window.lucide && window.lucide.icons[name] && spanRef.current) {
+                    spanRef.current.innerHTML = '';
+                    const iconNode = window.lucide.icons[name];
+                    const svg = window.lucide.createElement(iconNode);
+                    svg.setAttribute('width', size);
+                    svg.setAttribute('height', size);
+                    
+                    if (className) {
+                        className.split(' ').forEach(c => {
+                            if (c.trim()) svg.classList.add(c.trim());
+                        });
+                    }
+                    spanRef.current.appendChild(svg);
+                }
+            }, [name, size, className]);
+
+            return <span ref={spanRef} className={`inline-flex items-center justify-center`} />;
+        };
 
         class ErrorBoundary extends React.Component {
             constructor(props) {
                 super(props);
                 this.state = { hasError: false, error: null };
             }
-            static getDerivedStateFromError(error) {
-                return { hasError: true, error };
-            }
+            static getDerivedStateFromError(error) { return { hasError: true, error }; }
             render() {
                 if (this.state.hasError) {
                     return (
                         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-                            <div className="bg-white p-8 rounded-2xl shadow-xl max-w-lg w-full border border-red-100 text-center">
-                                <span className="material-icons text-red-500 text-6xl mb-4">error_outline</span>
-                                <h1 className="text-xl font-bold text-gray-900 mb-2">Something went wrong</h1>
-                                <p className="text-gray-500 text-sm mb-6">The dashboard encountered an error.</p>
-                                <pre className="bg-gray-100 p-4 rounded-xl text-xs overflow-auto text-red-600 max-h-48 text-left border border-gray-200">
+                            <div className="bg-white p-8 rounded-2xl shadow-xl max-w-lg w-full text-center">
+                                <LucideIcon name="AlertCircle" size={48} className="text-red-500 mb-4 mx-auto" />
+                                <h1 className="text-xl font-bold mb-2">App Component Error</h1>
+                                <p className="text-sm text-gray-500 mb-4">Please screenshot this and show it to your developer.</p>
+                                <pre className="bg-gray-100 p-4 rounded-xl text-xs overflow-auto text-red-600 text-left whitespace-pre-wrap">
                                     {this.state.error?.toString()}
                                 </pre>
                             </div>
@@ -115,7 +136,6 @@
         ];
 
         function Dashboard() {
-            // Default view is the Admin Panel
             const [view, setView] = useState('admin');
             const [activeInvestorId, setActiveInvestorId] = useState(1);
             const [investors, setInvestors] = useState(INITIAL_INVESTORS);
@@ -125,56 +145,7 @@
             const [newInvestorName, setNewInvestorName] = useState('');
             const [newInvestorShare, setNewInvestorShare] = useState('');
             const [editingInvestor, setEditingInvestor] = useState(null);
-            const [user, setUser] = useState(null);
-
-            useEffect(() => {
-                if (!window.firebaseAPI) return;
-                const { auth, signInAnonymously, onAuthStateChanged } = window.firebaseAPI;
-                
-                const initAuth = async () => {
-                    try { await signInAnonymously(auth); } 
-                    catch (error) { console.error("Auth failed:", error); }
-                };
-                initAuth();
-                
-                const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-                    if (currentUser) setUser(currentUser);
-                });
-                return () => unsubscribe();
-            }, []);
-
-            useEffect(() => {
-                if (!user || !window.firebaseAPI) return;
-                const { db, doc, onSnapshot, setDoc } = window.firebaseAPI;
-                const docRef = doc(db, 'equitrack', 'main_database', 'store', 'state');
-                
-                const unsubscribe = onSnapshot(docRef, (docSnap) => {
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
-                        if (data.investors) setInvestors(data.investors);
-                        if (data.transactions) setTransactions(data.transactions);
-                    } else {
-                        setDoc(docRef, { investors: INITIAL_INVESTORS, transactions: INITIAL_TRANSACTIONS });
-                    }
-                }, (err) => console.error(err));
-                return () => unsubscribe();
-            }, [user]);
-
-            const syncToFirebase = async (newInvestors, newTransactions) => {
-                if (!user || !window.firebaseAPI) {
-                    setInvestors(newInvestors);
-                    setTransactions(newTransactions);
-                    return;
-                }
-                try {
-                    const { db, doc, setDoc } = window.firebaseAPI;
-                    const docRef = doc(db, 'equitrack', 'main_database', 'store', 'state');
-                    await setDoc(docRef, { investors: newInvestors, transactions: newTransactions });
-                } catch (err) {
-                    showNotification("Failed to save data online", "error");
-                }
-            };
-
+            
             const [adminAction, setAdminAction] = useState('charge'); 
             const [amount, setAmount] = useState('');
             const [selectedInvestor, setSelectedInvestor] = useState(1);
@@ -182,13 +153,52 @@
             const [customDate, setCustomDate] = useState('');
             const [notification, setNotification] = useState(null);
 
-            const totalCompanyBalance = useMemo(() => investors.reduce((sum, inv) => sum + inv.balance, 0), [investors]);
-            const totalIncomeGenerated = useMemo(() => transactions.filter(t => t.type === 'company_income').reduce((sum, t) => sum + t.amount, 0), [transactions]);
-
             const showNotification = (message, type = 'success') => {
                 setNotification({ message, type });
-                setTimeout(() => setNotification(null), 3000);
+                setTimeout(() => setNotification(null), 4000);
             };
+
+            useEffect(() => {
+                if (!window.firebaseAPI) return;
+                const { db, doc, onSnapshot, setDoc } = window.firebaseAPI;
+                const docRef = doc(db, 'equitrack', 'main_app_state');
+                
+                const unsubscribe = onSnapshot(docRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        if (data.investors) setInvestors(data.investors);
+                        if (data.transactions) setTransactions(data.transactions);
+                    } else {
+                        setDoc(docRef, { investors: INITIAL_INVESTORS, transactions: INITIAL_TRANSACTIONS })
+                            .catch(err => console.error("Initialization error:", err));
+                    }
+                }, (err) => {
+                    console.error("Database Read Error:", err);
+                });
+                
+                return () => unsubscribe();
+            }, []);
+
+            const syncToFirebase = async (newInvestors, newTransactions) => {
+                setInvestors(newInvestors);
+                setTransactions(newTransactions);
+                
+                if (!window.firebaseAPI) {
+                    showNotification("Firebase is not connected!", "error");
+                    return;
+                }
+                
+                try {
+                    const { db, doc, setDoc } = window.firebaseAPI;
+                    const docRef = doc(db, 'equitrack', 'main_app_state');
+                    await setDoc(docRef, { investors: newInvestors, transactions: newTransactions });
+                } catch (err) {
+                    showNotification("Failed to save to cloud!", "error");
+                }
+            };
+
+            const totalCompanyBalance = useMemo(() => investors.reduce((sum, inv) => sum + inv.balance, 0), [investors]);
+            const totalIncomeGenerated = useMemo(() => transactions.filter(t => t.type === 'company_income').reduce((sum, t) => sum + t.amount, 0), [transactions]);
 
             const handleTransaction = (e) => {
                 e.preventDefault();
@@ -237,7 +247,7 @@
                     syncToFirebase(updatedInvestors, updatedTransactions);
                     
                     setAmount(''); setDescription(''); setCustomDate('');
-                    showNotification(`Transaction successful!`);
+                    showNotification(`Transaction saved successfully!`);
                 } catch (error) {
                     showNotification(error.message, 'error');
                 }
@@ -260,7 +270,7 @@
                 const resetInvestors = investors.map(inv => ({ ...inv, balance: 0 }));
                 syncToFirebase(resetInvestors, INITIAL_TRANSACTIONS);
                 setShowClearConfirm(false);
-                showNotification('All data has been cleared');
+                showNotification('All data has been cleared permanently.');
             };
 
             const handleDeleteTransaction = (txId) => {
@@ -280,7 +290,7 @@
 
                 const newTransactions = transactions.filter(t => t.id !== txId);
                 syncToFirebase(updatedInvestors, newTransactions);
-                showNotification('Transaction removed and balances restored');
+                showNotification('Action undone successfully.');
             };
 
             const renderHeader = () => (
@@ -289,7 +299,7 @@
                         <div className="flex justify-between h-16 items-center">
                             <div className="flex items-center gap-2">
                                 <div className="bg-blue-600 p-2 rounded-lg text-white">
-                                    <span className="material-icons text-xl">trending_up</span>
+                                    <LucideIcon name="TrendingUp" size={24} className="text-white" />
                                 </div>
                                 <span className="font-bold text-xl text-gray-900 tracking-tight">EquiTrack</span>
                             </div>
@@ -298,15 +308,15 @@
                                 <div className="flex bg-gray-100 p-1 rounded-lg">
                                     <button 
                                         onClick={() => setView('admin')}
-                                        className={`px-4 py-1.5 flex items-center gap-1.5 text-sm font-medium rounded-md transition-colors ${view === 'admin' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                                        className={`px-3 py-1.5 flex items-center gap-1.5 text-sm font-medium rounded-md transition-colors ${view === 'admin' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
                                     >
-                                        <span className="material-icons text-sm">settings</span> Admin Panel
+                                        <LucideIcon name="Settings" size={16} /> <span className="hidden sm:inline">Admin</span>
                                     </button>
                                     <button 
                                         onClick={() => setView('investor')}
-                                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${view === 'investor' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                                        className={`px-3 py-1.5 flex items-center gap-1.5 text-sm font-medium rounded-md transition-colors ${view === 'investor' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
                                     >
-                                        Investor View
+                                        <LucideIcon name="Eye" size={16} /> <span className="hidden sm:inline">Investor</span>
                                     </button>
                                 </div>
                                 
@@ -314,10 +324,10 @@
                                     <select 
                                         value={activeInvestorId}
                                         onChange={(e) => setActiveInvestorId(Number(e.target.value))}
-                                        className="text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                        className="text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 bg-white p-1 border max-w-[120px] sm:max-w-none"
                                     >
                                         {investors.map(inv => (
-                                            <option key={inv.id} value={inv.id}>View as: {inv.name}</option>
+                                            <option key={inv.id} value={inv.id}>{inv.name}</option>
                                         ))}
                                     </select>
                                 )}
@@ -330,19 +340,19 @@
             const renderAdminView = () => (
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
-                        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex flex-wrap justify-between items-center gap-4">
+                        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                             <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                                <span className="material-icons text-gray-500 text-xl">group</span> Manage Investors & Shares
+                                <LucideIcon name="Users" size={20} className="text-gray-500" /> Manage Investors
                             </h2>
-                            <div className="flex items-center gap-3">
-                                <span className="text-sm font-medium bg-blue-100 text-blue-700 px-3 py-1 rounded-full border border-blue-200">
+                            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                                <span className="text-sm font-medium bg-blue-100 text-blue-700 px-3 py-1.5 rounded-full border border-blue-200">
                                     Total Shares: {investors.reduce((sum, inv) => sum + Number(inv.share || 0), 0)}%
                                 </span>
                                 <button 
                                     onClick={() => setShowClearConfirm(true)}
-                                    className="flex items-center gap-1.5 text-sm font-medium bg-red-100 text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-200 transition-colors border border-red-200"
+                                    className="flex-1 sm:flex-none justify-center flex items-center gap-1.5 text-sm font-medium bg-red-100 text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-200 border border-red-200 transition-colors"
                                 >
-                                    <span className="material-icons text-sm">delete_forever</span> Reset Data
+                                    <LucideIcon name="Trash2" size={16} /> Reset Data
                                 </button>
                             </div>
                         </div>
@@ -364,18 +374,18 @@
                                                         const updated = investors.map(i => i.id === inv.id ? {...i, name: newName, share: Number(newShare)} : i);
                                                         syncToFirebase(updated, transactions);
                                                         setEditingInvestor(null);
-                                                    }} className="flex-1 flex justify-center items-center bg-emerald-100 text-emerald-700 p-1.5 rounded hover:bg-emerald-200"><span className="material-icons text-base">save</span></button>
-                                                    <button onClick={() => setEditingInvestor(null)} className="flex-1 flex justify-center items-center bg-gray-100 text-gray-700 p-1.5 rounded hover:bg-gray-200">Cancel</button>
+                                                    }} className="flex-1 flex justify-center items-center bg-emerald-100 text-emerald-700 p-1.5 rounded"><LucideIcon name="Save" size={18} /></button>
+                                                    <button onClick={() => setEditingInvestor(null)} className="flex-1 bg-gray-100 text-gray-700 p-1.5 rounded">Cancel</button>
                                                 </div>
                                             </div>
                                         ) : (
                                             <>
                                                 <div className="flex justify-between items-start mb-2">
                                                     <div className="font-medium text-gray-900 truncate pr-2">{inv.name}</div>
-                                                    <button onClick={() => setEditingInvestor(inv.id)} className="text-gray-400 hover:text-blue-600 flex-shrink-0"><span className="material-icons text-base">edit</span></button>
+                                                    <button onClick={() => setEditingInvestor(inv.id)} className="text-gray-400 hover:text-blue-600"><LucideIcon name="Edit2" size={16} /></button>
                                                 </div>
                                                 <div className="text-2xl font-bold text-blue-600">{inv.share}%</div>
-                                                <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Share</div>
+                                                <div className="text-xs text-gray-500 uppercase mt-1">Share</div>
                                             </>
                                         )}
                                     </div>
@@ -383,29 +393,24 @@
                             </div>
                             
                             <div className="bg-gray-50 rounded-xl p-5 border border-gray-200 shadow-sm">
-                                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                                    <span className="material-icons text-blue-600 text-base">person_add</span> Add New Investor
-                                </h3>
-                                <div className="flex flex-wrap items-end gap-4">
-                                    <div className="flex-1 min-w-[200px]">
+                                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><LucideIcon name="UserPlus" size={18} className="text-blue-600" /> Add New Investor</h3>
+                                <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+                                    <div className="w-full sm:flex-1">
                                         <label className="block text-xs font-medium text-gray-700 mb-1">Full Name</label>
-                                        <input type="text" value={newInvestorName} onChange={(e) => setNewInvestorName(e.target.value)} className="w-full text-sm border-gray-300 rounded-lg border p-2" placeholder="e.g. John Doe"/>
+                                        <input type="text" value={newInvestorName} onChange={(e) => setNewInvestorName(e.target.value)} className="w-full text-sm border-gray-300 rounded-lg border p-2"/>
                                     </div>
-                                    <div className="w-32">
+                                    <div className="w-full sm:w-32">
                                         <label className="block text-xs font-medium text-gray-700 mb-1">Share (%)</label>
-                                        <div className="relative">
-                                            <input type="number" value={newInvestorShare} onChange={(e) => setNewInvestorShare(e.target.value)} className="w-full text-sm border-gray-300 rounded-lg border p-2 pr-8" placeholder="0"/>
-                                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none"><span className="text-gray-500 sm:text-sm">%</span></div>
-                                        </div>
+                                        <input type="number" value={newInvestorShare} onChange={(e) => setNewInvestorShare(e.target.value)} className="w-full text-sm border-gray-300 rounded-lg border p-2"/>
                                     </div>
                                     <button onClick={() => {
-                                        if(!newInvestorName || !newInvestorShare) { showNotification("Please provide both name and share percentage", "error"); return; }
+                                        if(!newInvestorName || !newInvestorShare) { showNotification("Provide both name and share %", "error"); return; }
                                         const initials = newInvestorName.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase();
                                         const newInv = { id: Date.now(), name: newInvestorName, balance: 0, share: Number(newInvestorShare), avatar: `https://placehold.co/100x100/6366F1/ffffff?text=${initials}` };
                                         syncToFirebase([...investors, newInv], transactions);
                                         setNewInvestorName(''); setNewInvestorShare('');
-                                        showNotification("Investor added successfully");
-                                    }} className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Add Investor</button>
+                                        showNotification("Investor added");
+                                    }} className="w-full sm:w-auto bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Add</button>
                                 </div>
                             </div>
                         </div>
@@ -413,15 +418,15 @@
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
-                            <div className="p-3 bg-blue-50 rounded-xl text-blue-600"><span className="material-icons text-3xl">account_balance_wallet</span></div>
+                            <div className="p-3 bg-blue-50 rounded-xl text-blue-600"><LucideIcon name="Wallet" size={32} /></div>
                             <div><p className="text-sm font-medium text-gray-500">Net Partner Balances</p><h3 className={`text-2xl font-bold ${totalCompanyBalance >= 0 ? 'text-gray-900' : 'text-red-600'}`}>{formatCurrency(totalCompanyBalance)}</h3></div>
                         </div>
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
-                            <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600"><span className="material-icons text-3xl">trending_up</span></div>
+                            <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600"><LucideIcon name="TrendingUp" size={32} /></div>
                             <div><p className="text-sm font-medium text-gray-500">Total Project Income</p><h3 className="text-2xl font-bold text-gray-900">{formatCurrency(totalIncomeGenerated)}</h3></div>
                         </div>
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
-                            <div className="p-3 bg-purple-50 rounded-xl text-purple-600"><span className="material-icons text-3xl">groups</span></div>
+                            <div className="p-3 bg-purple-50 rounded-xl text-purple-600"><LucideIcon name="Users" size={32} /></div>
                             <div><p className="text-sm font-medium text-gray-500">Active Investors</p><h3 className="text-2xl font-bold text-gray-900">{investors.length}</h3></div>
                         </div>
                     </div>
@@ -430,7 +435,7 @@
                         <div className="lg:col-span-1 space-y-6">
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                                 <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-                                    <h2 className="font-semibold text-gray-900 flex items-center gap-2"><span className="material-icons text-gray-500 text-xl">add_circle_outline</span> New Transaction</h2>
+                                    <h2 className="font-semibold text-gray-900 flex items-center gap-2"><LucideIcon name="PlusCircle" size={20} className="text-gray-500" /> New Action</h2>
                                 </div>
                                 <div className="p-6">
                                     <form onSubmit={handleTransaction} className="space-y-4">
@@ -453,13 +458,10 @@
                                         )}
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
-                                            <div className="relative rounded-md shadow-sm border border-gray-300">
-                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><span className="text-gray-500 sm:text-sm">$</span></div>
-                                                <input type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="block w-full pl-7 sm:text-sm rounded-lg py-2" placeholder="0.00"/>
-                                            </div>
+                                            <input type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="block w-full sm:text-sm border border-gray-300 rounded-lg py-2 px-3" placeholder="0.00"/>
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                                             <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} className="block w-full sm:text-sm border border-gray-300 rounded-lg py-2 px-3" placeholder="e.g. Server costs"/>
                                         </div>
                                         <div>
@@ -467,7 +469,7 @@
                                             <input type="datetime-local" value={customDate} onChange={(e) => setCustomDate(e.target.value)} className="block w-full sm:text-sm border border-gray-300 rounded-lg py-2 px-3 bg-white"/>
                                             <p className="mt-1 text-xs text-gray-500">Leave blank for current time.</p>
                                         </div>
-                                        <button type="submit" className="w-full flex justify-center py-2.5 px-4 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 mt-2">Process Transaction</button>
+                                        <button type="submit" className="w-full flex justify-center py-2.5 px-4 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 mt-2">Submit</button>
                                     </form>
                                 </div>
                             </div>
@@ -490,15 +492,14 @@
                             </div>
                         </div>
 
-                        {}
                         <div className="lg:col-span-2 space-y-6">
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                                 <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-                                    <h2 className="font-semibold text-gray-900 flex items-center gap-2"><span className="material-icons text-gray-500 text-xl">receipt_long</span> Ledger History</h2>
+                                    <h2 className="font-semibold text-gray-900 flex items-center gap-2"><LucideIcon name="History" size={20} className="text-gray-500" /> Ledger History</h2>
                                 </div>
-                                <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                                <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                                     <table className="min-w-full divide-y divide-gray-200">
-                                        <thead className="bg-white sticky top-0">
+                                        <thead className="bg-white sticky top-0 z-0">
                                             <tr>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
@@ -513,7 +514,7 @@
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(tx.date)}</td>
                                                     <td className="px-6 py-4 text-sm text-gray-900">
                                                         {tx.description}
-                                                        {tx.investorId && <span className="ml-2 text-xs text-gray-500">({investors.find(i => i.id === tx.investorId)?.name})</span>}
+                                                        {tx.investorId && <span className="ml-2 text-xs text-gray-500 block sm:inline">({investors.find(i => i.id === tx.investorId)?.name})</span>}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                                                         <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border bg-gray-50 text-gray-700">{tx.type.replace('_', ' ').toUpperCase()}</span>
@@ -523,8 +524,8 @@
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                         {tx.type !== 'system_income' && (
-                                                            <button onClick={() => handleDeleteTransaction(tx.id)} className="text-red-500 hover:text-red-700 p-1 bg-red-50 rounded" title="Undo">
-                                                                <span className="material-icons text-base">delete</span>
+                                                            <button onClick={() => handleDeleteTransaction(tx.id)} className="text-red-500 hover:text-red-700 p-1 bg-red-50 hover:bg-red-100 rounded transition-colors" title="Undo">
+                                                                <LucideIcon name="Trash2" size={16} />
                                                             </button>
                                                         )}
                                                     </td>
@@ -549,12 +550,12 @@
                 return (
                     <div className="max-w-4xl mx-auto px-4 py-10 space-y-8">
                         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-                            <div className="bg-gradient-to-r from-gray-900 to-gray-800 p-8 text-white flex flex-col md:flex-row items-center justify-between gap-6">
-                                <div className="flex items-center gap-5">
-                                    <img src={myData.avatar} alt={myData.name} className="h-20 w-20 rounded-full border-4 border-gray-700 bg-gray-800" />
-                                    <div><h1 className="text-3xl font-bold">{myData.name}</h1><p className="text-gray-400 mt-1">Investor Dashboard ({myData.share}%)</p></div>
+                            <div className="bg-gradient-to-r from-gray-900 to-gray-800 p-6 sm:p-8 text-white flex flex-col md:flex-row items-center justify-between gap-6">
+                                <div className="flex items-center gap-5 text-center sm:text-left">
+                                    <img src={myData.avatar} alt={myData.name} className="h-16 w-16 sm:h-20 sm:w-20 rounded-full border-4 border-gray-700 bg-gray-800" />
+                                    <div><h1 className="text-2xl sm:text-3xl font-bold">{myData.name}</h1><p className="text-gray-400 mt-1 text-sm sm:text-base">Dashboard ({myData.share}%)</p></div>
                                 </div>
-                                <div className="bg-gray-800/50 p-6 rounded-2xl border border-gray-700/50 text-center min-w-[200px]">
+                                <div className="bg-gray-800/50 p-6 rounded-2xl border border-gray-700/50 text-center w-full md:w-auto min-w-[200px]">
                                     <p className="text-gray-400 text-sm font-medium mb-1">Current Balance</p>
                                     <h2 className={`text-4xl font-bold ${isPositive ? 'text-emerald-400' : isNegative ? 'text-red-400' : 'text-white'}`}>
                                         {isPositive ? '+' : ''}{formatCurrency(myData.balance)}
@@ -568,32 +569,32 @@
                                 {myTransactions.map((tx) => {
                                     let displayAmount = tx.amount;
                                     let isCredit = (tx.type === 'company_income' || tx.type === 'investor_payment');
-                                    let icon = "schedule";
+                                    let IconName = "Clock";
                                     let iconColor = "text-gray-500";
 
                                     if (tx.type === 'company_income') {
                                         displayAmount = (tx.amount * (Number(myData.share) || 0)) / 100;
-                                        icon = "trending_up"; iconColor = "text-emerald-500";
+                                        IconName = "TrendingUp"; iconColor = "text-emerald-500";
                                     } else if (tx.type === 'investor_payment') {
-                                        icon = "north_east"; iconColor = "text-blue-500";
+                                        IconName = "ArrowUpRight"; iconColor = "text-blue-500";
                                     } else if (tx.type === 'daily_charge') {
-                                        icon = "south_east"; iconColor = "text-red-500";
+                                        IconName = "ArrowDownRight"; iconColor = "text-red-500";
                                     } else if (tx.type === 'investor_withdrawal') {
-                                        icon = "logout"; iconColor = "text-orange-500";
+                                        IconName = "LogOut"; iconColor = "text-orange-500";
                                     }
 
                                     return (
-                                        <div key={tx.id} className="p-5 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                                            <div className="flex items-center gap-4">
-                                                <div className={`p-2 rounded-full ${isCredit ? 'bg-emerald-50' : 'bg-red-50'}`}>
-                                                    <span className={`material-icons ${iconColor}`}>{icon}</span>
+                                        <div key={tx.id} className="p-4 sm:p-5 flex flex-row items-center justify-between hover:bg-gray-50 transition-colors">
+                                            <div className="flex items-center gap-3 sm:gap-4">
+                                                <div className={`p-2 rounded-full ${isCredit ? 'bg-emerald-50' : 'bg-red-50'} hidden sm:block`}>
+                                                    <LucideIcon name={IconName} size={20} className={iconColor} />
                                                 </div>
                                                 <div>
-                                                    <p className="font-medium text-gray-900">{tx.description}</p>
+                                                    <p className="font-medium text-gray-900 text-sm sm:text-base">{tx.description}</p>
                                                     <p className="text-xs text-gray-500 mt-0.5">{formatDate(tx.date)}</p>
                                                 </div>
                                             </div>
-                                            <div className={`font-bold ${isCredit ? 'text-emerald-600' : 'text-red-600'}`}>
+                                            <div className={`font-bold text-sm sm:text-base ${isCredit ? 'text-emerald-600' : 'text-red-600'}`}>
                                                 {isCredit ? '+' : '-'}{formatCurrency(displayAmount)}
                                             </div>
                                         </div>
@@ -611,8 +612,8 @@
                     <main>{view === 'admin' ? renderAdminView() : renderInvestorView()}</main>
                     
                     {notification && (
-                        <div className={`fixed bottom-4 right-4 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white font-medium transition-all ${notification.type === 'error' ? 'bg-red-500' : 'bg-emerald-500'}`}>
-                            <span className="material-icons">{notification.type === 'error' ? 'error_outline' : 'check_circle'}</span>
+                        <div className={`fixed bottom-4 right-4 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white font-medium transition-all z-50 ${notification.type === 'error' ? 'bg-red-500' : 'bg-emerald-500'}`}>
+                            <LucideIcon name={notification.type === 'error' ? 'AlertCircle' : 'CheckCircle'} size={20} />
                             {notification.message}
                         </div>
                     )}
@@ -620,7 +621,7 @@
                     {showClearConfirm && (
                         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                             <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden p-6 text-center border border-red-100">
-                                <span className="material-icons text-red-500 text-5xl mb-2">warning</span>
+                                <LucideIcon name="AlertTriangle" size={48} className="text-red-500 mb-2 mx-auto" />
                                 <h2 className="text-xl font-bold text-gray-900 mb-2">Clear All Data?</h2>
                                 <p className="text-gray-500 text-sm mb-6">Are you sure? This will delete all history and set all balances to zero. This cannot be undone.</p>
                                 <div className="flex gap-3">
@@ -636,6 +637,7 @@
 
         function App() {
             const [ready, setReady] = useState(window.firebaseReady);
+            const [error, setError] = useState(window.firebaseError);
             
             useEffect(() => {
                 const handleReady = () => setReady(true);
@@ -643,12 +645,22 @@
                 return () => window.removeEventListener('firebase-ready', handleReady);
             }, []);
 
+            if (error) {
+                 return (
+                    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
+                        <LucideIcon name="AlertCircle" size={48} className="text-red-500 mb-4 mx-auto" />
+                        <h2 className="text-xl font-bold">Database Connection Failed</h2>
+                        <p className="text-gray-500 mt-2 text-center text-sm">{error}</p>
+                    </div>
+                );
+            }
+
             if (!ready) {
                 return (
                     <div className="min-h-screen flex items-center justify-center bg-gray-50">
                         <div className="flex flex-col items-center gap-4">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                            <p className="text-gray-500 font-medium">Connecting to Database...</p>
+                            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                            <p className="text-gray-500 font-medium text-sm">Connecting to Database...</p>
                         </div>
                     </div>
                 );

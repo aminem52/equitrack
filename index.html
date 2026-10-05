@@ -6,7 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>EquiTrack Dashboard</title>
     
-    <!-- App Icons and Mobile Web App Meta Tags (PWA features) -->
+    <!-- PWA Manifest for Android/Chrome to force full-screen standalone mode -->
+    <link rel="manifest" href='data:application/manifest+json,{"name":"EquiTrack","short_name":"EquiTrack","start_url":".","display":"standalone","background_color":"#f9fafb","theme_color":"#2563EB"}'>
+    
+    <!-- App Icons and Mobile Web App Meta Tags for iOS Safari -->
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%232563EB'/%3E%3Csvg x='106' y='106' width='300' height='300' viewBox='0 0 24 24'%3E%3Cpath fill='%23ffffff' d='M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z'/%3E%3C/svg%3E%3C/svg%3E" type="image/svg+xml">
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%232563EB'/%3E%3Csvg x='106' y='106' width='300' height='300' viewBox='0 0 24 24'%3E%3Cpath fill='%23ffffff' d='M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z'/%3E%3C/svg%3E%3C/svg%3E">
     <meta name="apple-mobile-web-app-title" content="EquiTrack">
@@ -47,6 +50,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+        // YOUR SPECIFIC FIREBASE KEYS
         const firebaseConfig = {
             apiKey: "AIzaSyDbi0J9HwoJ656Et6OYCdLpcea2t2_8vRU",
             authDomain: "equitrack-23164.firebaseapp.com",
@@ -61,6 +65,7 @@
             const app = initializeApp(firebaseConfig);
             const db = getFirestore(app);
 
+            // Pass database tools to global window object so React can use it
             window.firebaseAPI = { db, doc, setDoc, onSnapshot };
         } catch (error) {
             console.error("Firebase Initialization Error:", error);
@@ -75,7 +80,7 @@
         const { useState, useEffect, useMemo, useRef } = React;
         const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } = window.Recharts || {};
 
-        // Custom Component to securely render original Lucide icons
+        // Custom Component to securely render original Lucide icons without crashing
         const LucideIcon = ({ name, size = 24, className = "" }) => {
             const spanRef = useRef(null);
             
@@ -191,6 +196,7 @@
                 try {
                     const { db, doc, setDoc } = window.firebaseAPI;
                     const docRef = doc(db, 'equitrack', 'main_app_state');
+                    // Saving to cloud directly without Auth check
                     await setDoc(docRef, { investors: newInvestors, transactions: newTransactions });
                 } catch (err) {
                     showNotification("Failed to save to cloud!", "error");

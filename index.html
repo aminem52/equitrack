@@ -9,7 +9,7 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Material Icons (Google) for UI elements -->
+    <!-- Material Icons (Google) -->
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     
     <!-- React & ReactDOM -->
@@ -44,7 +44,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Your custom Firebase configuration
+        // Your exact Firebase configuration
         const firebaseConfig = {
             apiKey: "AIzaSyDbi0J9HwoJ656Et6OYCdLpcea2t2_8vRU",
             authDomain: "equitrack-23164.firebaseapp.com",
@@ -60,7 +60,6 @@
             const auth = getAuth(app);
             const db = getFirestore(app);
 
-            // Expose Firebase tools to the global window object so React can use them safely
             window.firebaseAPI = {
                 auth, db, signInAnonymously, onAuthStateChanged, doc, setDoc, onSnapshot
             };
@@ -68,19 +67,15 @@
             console.error("Firebase Initialization Error:", error);
             window.firebaseError = error.message;
         } finally {
-            // Always notify React that we attempted to load Firebase, even if it failed in the sandbox
             window.firebaseReady = true;
             window.dispatchEvent(new Event('firebase-ready'));
         }
     </script>
 
     <script type="text/babel">
-        // 1. Safe extraction of dependencies
         const { useState, useEffect, useMemo } = React;
-        const Recharts = window.Recharts || {};
-        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } = Recharts;
+        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } = window.Recharts || {};
 
-        // 2. Error Boundary to prevent "White Screen of Death"
         class ErrorBoundary extends React.Component {
             constructor(props) {
                 super(props);
@@ -93,11 +88,11 @@
                 if (this.state.hasError) {
                     return (
                         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-                            <div className="bg-white p-8 rounded-2xl shadow-xl max-w-lg w-full border border-red-100">
-                                <div className="text-red-500 mb-4 flex justify-center"><span className="material-icons text-5xl">error</span></div>
-                                <h1 className="text-xl font-bold text-gray-900 text-center mb-2">Something went wrong</h1>
-                                <p className="text-gray-500 text-sm text-center mb-6">The application encountered an unexpected error.</p>
-                                <pre className="bg-gray-100 p-4 rounded-xl text-xs overflow-auto text-red-600 max-h-48 border border-gray-200">
+                            <div className="bg-white p-8 rounded-2xl shadow-xl max-w-lg w-full border border-red-100 text-center">
+                                <span className="material-icons text-red-500 text-6xl mb-4">error_outline</span>
+                                <h1 className="text-xl font-bold text-gray-900 mb-2">Something went wrong</h1>
+                                <p className="text-gray-500 text-sm mb-6">The dashboard encountered an error.</p>
+                                <pre className="bg-gray-100 p-4 rounded-xl text-xs overflow-auto text-red-600 max-h-48 text-left border border-gray-200">
                                     {this.state.error?.toString()}
                                 </pre>
                             </div>
@@ -120,33 +115,25 @@
         ];
 
         function Dashboard() {
-            // Default view set to 'admin'
+            // Default view is the Admin Panel
             const [view, setView] = useState('admin');
             const [activeInvestorId, setActiveInvestorId] = useState(1);
             const [investors, setInvestors] = useState(INITIAL_INVESTORS);
             const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS);
             
-            // Modals & States
             const [showClearConfirm, setShowClearConfirm] = useState(false);
             const [newInvestorName, setNewInvestorName] = useState('');
             const [newInvestorShare, setNewInvestorShare] = useState('');
             const [editingInvestor, setEditingInvestor] = useState(null);
-
-            // Firebase Integration State
             const [user, setUser] = useState(null);
-            const [authError, setAuthError] = useState(null);
 
             useEffect(() => {
                 if (!window.firebaseAPI) return;
                 const { auth, signInAnonymously, onAuthStateChanged } = window.firebaseAPI;
                 
                 const initAuth = async () => {
-                    try {
-                        await signInAnonymously(auth);
-                    } catch (error) {
-                        console.warn("Auth initialization warning (Sandbox environment):", error);
-                        setAuthError("Database sync is offline. You might be in a preview sandbox. Deploy to Netlify to enable saving.");
-                    }
+                    try { await signInAnonymously(auth); } 
+                    catch (error) { console.error("Auth failed:", error); }
                 };
                 initAuth();
                 
@@ -159,7 +146,7 @@
             useEffect(() => {
                 if (!user || !window.firebaseAPI) return;
                 const { db, doc, onSnapshot, setDoc } = window.firebaseAPI;
-                const docRef = doc(db, 'artifacts', 'equitrack', 'public', 'data', 'store', 'state');
+                const docRef = doc(db, 'equitrack', 'main_database', 'store', 'state');
                 
                 const unsubscribe = onSnapshot(docRef, (docSnap) => {
                     if (docSnap.exists()) {
@@ -181,11 +168,8 @@
                 }
                 try {
                     const { db, doc, setDoc } = window.firebaseAPI;
-                    const docRef = doc(db, 'artifacts', 'equitrack', 'public', 'data', 'store', 'state');
-                    await setDoc(docRef, {
-                        investors: newInvestors,
-                        transactions: newTransactions
-                    });
+                    const docRef = doc(db, 'equitrack', 'main_database', 'store', 'state');
+                    await setDoc(docRef, { investors: newInvestors, transactions: newTransactions });
                 } catch (err) {
                     showNotification("Failed to save data online", "error");
                 }
@@ -198,15 +182,8 @@
             const [customDate, setCustomDate] = useState('');
             const [notification, setNotification] = useState(null);
 
-            const totalCompanyBalance = useMemo(() => {
-                return investors.reduce((sum, inv) => sum + inv.balance, 0);
-            }, [investors]);
-
-            const totalIncomeGenerated = useMemo(() => {
-                return transactions
-                    .filter(t => t.type === 'company_income')
-                    .reduce((sum, t) => sum + t.amount, 0);
-            }, [transactions]);
+            const totalCompanyBalance = useMemo(() => investors.reduce((sum, inv) => sum + inv.balance, 0), [investors]);
+            const totalIncomeGenerated = useMemo(() => transactions.filter(t => t.type === 'company_income').reduce((sum, t) => sum + t.amount, 0), [transactions]);
 
             const showNotification = (message, type = 'success') => {
                 setNotification({ message, type });
@@ -231,47 +208,31 @@
                 };
 
                 let updatedInvestors = [...investors];
-
                 try {
                     switch (adminAction) {
                         case 'charge':
                             newTx.type = 'daily_charge';
                             newTx.investorId = null;
-                            updatedInvestors = updatedInvestors.map(inv => ({
-                                ...inv,
-                                balance: inv.balance - numAmount
-                            }));
+                            updatedInvestors = updatedInvestors.map(inv => ({ ...inv, balance: inv.balance - numAmount }));
                             break;
                         case 'pay':
                             newTx.type = 'investor_payment';
                             newTx.investorId = Number(selectedInvestor);
-                            updatedInvestors = updatedInvestors.map(inv => 
-                                inv.id === Number(selectedInvestor) 
-                                    ? { ...inv, balance: inv.balance + numAmount } 
-                                    : inv
-                            );
+                            updatedInvestors = updatedInvestors.map(inv => inv.id === Number(selectedInvestor) ? { ...inv, balance: inv.balance + numAmount } : inv);
                             break;
                         case 'income':
                             newTx.type = 'company_income';
                             newTx.investorId = null;
-                            updatedInvestors = updatedInvestors.map(inv => ({
-                                ...inv,
-                                balance: inv.balance + (numAmount * (Number(inv.share) || 0) / 100)
-                            }));
+                            updatedInvestors = updatedInvestors.map(inv => ({ ...inv, balance: inv.balance + (numAmount * (Number(inv.share) || 0) / 100) }));
                             break;
                         case 'withdraw':
                             newTx.type = 'investor_withdrawal';
                             newTx.investorId = Number(selectedInvestor);
-                            updatedInvestors = updatedInvestors.map(inv => 
-                                inv.id === Number(selectedInvestor) 
-                                    ? { ...inv, balance: inv.balance - numAmount } 
-                                    : inv
-                            );
+                            updatedInvestors = updatedInvestors.map(inv => inv.id === Number(selectedInvestor) ? { ...inv, balance: inv.balance - numAmount } : inv);
                             break;
                         default: return;
                     }
 
-                    // Sort chronologically in case a custom past date was used
                     const updatedTransactions = [newTx, ...transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
                     syncToFirebase(updatedInvestors, updatedTransactions);
                     
@@ -294,33 +255,6 @@
 
             const formatCurrency = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
             const formatDate = (isoString) => new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(isoString));
-
-            const getChartData = () => {
-                let currentBalances = investors.map(i => ({ id: i.id, name: i.name, bal: 0 }));
-                const chartData = [];
-                const sortedTx = [...transactions].reverse();
-                
-                sortedTx.forEach((tx, index) => {
-                    if (tx.type === 'daily_charge') {
-                        currentBalances.forEach(b => b.bal -= tx.amount);
-                    } else if (tx.type === 'company_income') {
-                        currentBalances.forEach(b => {
-                            const inv = investors.find(i => i.id === b.id);
-                            b.bal += (tx.amount * (Number(inv?.share) || 0) / 100);
-                        });
-                    } else if (tx.type === 'investor_payment' || tx.type === 'investor_withdrawal') {
-                        const b = currentBalances.find(x => x.id === tx.investorId);
-                        if (b) b.bal += (tx.type === 'investor_payment' ? tx.amount : -tx.amount);
-                    }
-                    
-                    if (tx.type !== 'system_income') {
-                        const dataPoint = { name: `Tx ${index}`, date: formatDate(tx.date) };
-                        currentBalances.forEach(b => { dataPoint[b.name] = b.bal; });
-                        chartData.push(dataPoint);
-                    }
-                });
-                return chartData;
-            };
 
             const handleClearData = () => {
                 const resetInvestors = investors.map(inv => ({ ...inv, balance: 0 }));
@@ -351,16 +285,11 @@
 
             const renderHeader = () => (
                 <header className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-                    {authError && (
-                        <div className="bg-yellow-50 px-4 py-2 text-sm text-yellow-800 border-b border-yellow-200 text-center flex items-center justify-center gap-2">
-                            <span className="material-icons text-sm">warning</span> {authError}
-                        </div>
-                    )}
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="flex justify-between h-16 items-center">
                             <div className="flex items-center gap-2">
                                 <div className="bg-blue-600 p-2 rounded-lg text-white">
-                                    <span className="material-icons">trending_up</span>
+                                    <span className="material-icons text-xl">trending_up</span>
                                 </div>
                                 <span className="font-bold text-xl text-gray-900 tracking-tight">EquiTrack</span>
                             </div>
@@ -398,19 +327,8 @@
                 </header>
             );
 
-            const renderNotification = () => {
-                if (!notification) return null;
-                return (
-                    <div className={`fixed bottom-4 right-4 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white font-medium transition-all duration-300 transform translate-y-0 ${notification.type === 'error' ? 'bg-red-500' : 'bg-emerald-500'}`}>
-                        <span className="material-icons text-xl">{notification.type === 'error' ? 'error_outline' : 'check_circle'}</span>
-                        {notification.message}
-                    </div>
-                );
-            }
-
             const renderAdminView = () => (
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-                    {/* Manage Investors */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
                         <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex flex-wrap justify-between items-center gap-4">
                             <h2 className="font-semibold text-gray-900 flex items-center gap-2">
@@ -424,7 +342,7 @@
                                     onClick={() => setShowClearConfirm(true)}
                                     className="flex items-center gap-1.5 text-sm font-medium bg-red-100 text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-200 transition-colors border border-red-200"
                                 >
-                                    <span className="material-icons text-sm">delete</span> Reset Data
+                                    <span className="material-icons text-sm">delete_forever</span> Reset Data
                                 </button>
                             </div>
                         </div>
@@ -464,10 +382,9 @@
                                 ))}
                             </div>
                             
-                            {/* Add Investor Form */}
                             <div className="bg-gray-50 rounded-xl p-5 border border-gray-200 shadow-sm">
                                 <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                                    <span className="material-icons text-blue-600 text-base">add</span> Add New Investor
+                                    <span className="material-icons text-blue-600 text-base">person_add</span> Add New Investor
                                 </h3>
                                 <div className="flex flex-wrap items-end gap-4">
                                     <div className="flex-1 min-w-[200px]">
@@ -494,7 +411,6 @@
                         </div>
                     </div>
 
-                    {/* Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
                             <div className="p-3 bg-blue-50 rounded-xl text-blue-600"><span className="material-icons text-3xl">account_balance_wallet</span></div>
@@ -505,17 +421,16 @@
                             <div><p className="text-sm font-medium text-gray-500">Total Project Income</p><h3 className="text-2xl font-bold text-gray-900">{formatCurrency(totalIncomeGenerated)}</h3></div>
                         </div>
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
-                            <div className="p-3 bg-purple-50 rounded-xl text-purple-600"><span className="material-icons text-3xl">group</span></div>
+                            <div className="p-3 bg-purple-50 rounded-xl text-purple-600"><span className="material-icons text-3xl">groups</span></div>
                             <div><p className="text-sm font-medium text-gray-500">Active Investors</p><h3 className="text-2xl font-bold text-gray-900">{investors.length}</h3></div>
                         </div>
                     </div>
 
-                    {/* Transactions & Charts */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-1 space-y-6">
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                                 <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-                                    <h2 className="font-semibold text-gray-900 flex items-center gap-2"><span className="material-icons text-gray-500 text-xl">settings</span> New Transaction</h2>
+                                    <h2 className="font-semibold text-gray-900 flex items-center gap-2"><span className="material-icons text-gray-500 text-xl">add_circle_outline</span> New Transaction</h2>
                                 </div>
                                 <div className="p-6">
                                     <form onSubmit={handleTransaction} className="space-y-4">
@@ -556,6 +471,7 @@
                                     </form>
                                 </div>
                             </div>
+                            
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                                 <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50"><h2 className="font-semibold text-gray-900">Current Balances</h2></div>
                                 <ul className="divide-y divide-gray-100">
@@ -574,31 +490,13 @@
                             </div>
                         </div>
 
+                        {}
                         <div className="lg:col-span-2 space-y-6">
-                            {window.Recharts && (
-                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 h-96">
-                                    <h2 className="font-semibold text-gray-900 mb-4">Balance Trends</h2>
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart data={getChartData()} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                                            <XAxis dataKey="name" tick={{fontSize: 12, fill: '#9ca3af'}} axisLine={false} tickLine={false} />
-                                            <YAxis tickFormatter={(val) => `$${val}`} tick={{fontSize: 12, fill: '#9ca3af'}} axisLine={false} tickLine={false} />
-                                            <Tooltip formatter={(value) => formatCurrency(value)} contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb' }} />
-                                            <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }}/>
-                                            {investors.map((inv, idx) => {
-                                                const colors = ["#10B981", "#3B82F6", "#F59E0B", "#8B5CF6", "#EC4899", "#14B8A6", "#F43F5E"];
-                                                return <Line key={inv.id} type="monotone" dataKey={inv.name} stroke={colors[idx % colors.length]} strokeWidth={2} dot={false} activeDot={{r: 6}} />;
-                                            })}
-                                        </LineChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            )}
-
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                                 <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-                                    <h2 className="font-semibold text-gray-900 flex items-center gap-2"><span className="material-icons text-gray-500 text-xl">history</span> Ledger History</h2>
+                                    <h2 className="font-semibold text-gray-900 flex items-center gap-2"><span className="material-icons text-gray-500 text-xl">receipt_long</span> Ledger History</h2>
                                 </div>
-                                <div className="overflow-x-auto max-h-96">
+                                <div className="overflow-x-auto max-h-96 overflow-y-auto">
                                     <table className="min-w-full divide-y divide-gray-200">
                                         <thead className="bg-white sticky top-0">
                                             <tr>
@@ -625,7 +523,7 @@
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                         {tx.type !== 'system_income' && (
-                                                            <button onClick={() => handleDeleteTransaction(tx.id)} className="text-red-500 hover:text-red-700" title="Undo">
+                                                            <button onClick={() => handleDeleteTransaction(tx.id)} className="text-red-500 hover:text-red-700 p-1 bg-red-50 rounded" title="Undo">
                                                                 <span className="material-icons text-base">delete</span>
                                                             </button>
                                                         )}
@@ -670,11 +568,26 @@
                                 {myTransactions.map((tx) => {
                                     let displayAmount = tx.amount;
                                     let isCredit = (tx.type === 'company_income' || tx.type === 'investor_payment');
-                                    if (tx.type === 'company_income') displayAmount = (tx.amount * (Number(myData.share) || 0)) / 100;
+                                    let icon = "schedule";
+                                    let iconColor = "text-gray-500";
+
+                                    if (tx.type === 'company_income') {
+                                        displayAmount = (tx.amount * (Number(myData.share) || 0)) / 100;
+                                        icon = "trending_up"; iconColor = "text-emerald-500";
+                                    } else if (tx.type === 'investor_payment') {
+                                        icon = "north_east"; iconColor = "text-blue-500";
+                                    } else if (tx.type === 'daily_charge') {
+                                        icon = "south_east"; iconColor = "text-red-500";
+                                    } else if (tx.type === 'investor_withdrawal') {
+                                        icon = "logout"; iconColor = "text-orange-500";
+                                    }
 
                                     return (
                                         <div key={tx.id} className="p-5 flex items-center justify-between hover:bg-gray-50 transition-colors">
                                             <div className="flex items-center gap-4">
+                                                <div className={`p-2 rounded-full ${isCredit ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                                                    <span className={`material-icons ${iconColor}`}>{icon}</span>
+                                                </div>
                                                 <div>
                                                     <p className="font-medium text-gray-900">{tx.description}</p>
                                                     <p className="text-xs text-gray-500 mt-0.5">{formatDate(tx.date)}</p>
@@ -696,16 +609,23 @@
                 <div className="min-h-screen bg-gray-50 text-gray-900 pb-12">
                     {renderHeader()}
                     <main>{view === 'admin' ? renderAdminView() : renderInvestorView()}</main>
-                    {renderNotification()}
+                    
+                    {notification && (
+                        <div className={`fixed bottom-4 right-4 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white font-medium transition-all ${notification.type === 'error' ? 'bg-red-500' : 'bg-emerald-500'}`}>
+                            <span className="material-icons">{notification.type === 'error' ? 'error_outline' : 'check_circle'}</span>
+                            {notification.message}
+                        </div>
+                    )}
                     
                     {showClearConfirm && (
                         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden p-6 text-center">
+                            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden p-6 text-center border border-red-100">
+                                <span className="material-icons text-red-500 text-5xl mb-2">warning</span>
                                 <h2 className="text-xl font-bold text-gray-900 mb-2">Clear All Data?</h2>
-                                <p className="text-gray-500 text-sm mb-6">Are you sure? This cannot be undone.</p>
+                                <p className="text-gray-500 text-sm mb-6">Are you sure? This will delete all history and set all balances to zero. This cannot be undone.</p>
                                 <div className="flex gap-3">
-                                    <button onClick={() => setShowClearConfirm(false)} className="flex-1 py-2 px-4 border border-gray-300 rounded-xl">Cancel</button>
-                                    <button onClick={handleClearData} className="flex-1 py-2 px-4 bg-red-600 rounded-xl text-white">Yes, Clear All</button>
+                                    <button onClick={() => setShowClearConfirm(false)} className="flex-1 py-2 px-4 border border-gray-300 rounded-xl font-medium">Cancel</button>
+                                    <button onClick={handleClearData} className="flex-1 py-2 px-4 bg-red-600 rounded-xl text-white font-medium">Yes, Clear All</button>
                                 </div>
                             </div>
                         </div>
@@ -716,18 +636,14 @@
 
         function App() {
             const [ready, setReady] = useState(window.firebaseReady);
-            const [errorMsg, setErrorMsg] = useState(window.firebaseError);
             
             useEffect(() => {
-                const handleReady = () => {
-                    setReady(true);
-                    if (window.firebaseError) setErrorMsg(window.firebaseError);
-                };
+                const handleReady = () => setReady(true);
                 window.addEventListener('firebase-ready', handleReady);
                 return () => window.removeEventListener('firebase-ready', handleReady);
             }, []);
 
-            if (!ready && !errorMsg) {
+            if (!ready) {
                 return (
                     <div className="min-h-screen flex items-center justify-center bg-gray-50">
                         <div className="flex flex-col items-center gap-4">
@@ -746,12 +662,8 @@
         }
 
         const domContainer = document.getElementById('root');
-        if (domContainer) {
-            const root = ReactDOM.createRoot(domContainer);
-            root.render(<App />);
-        } else {
-            console.error("Critical: Could not find root element to mount React.");
-        }
+        const root = ReactDOM.createRoot(domContainer);
+        root.render(<App />);
     </script>
 </body>
 </html>

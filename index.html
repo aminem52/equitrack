@@ -1,0 +1,759 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EquiTrack Dashboard</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Material Icons (Google) for UI elements -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    
+    <!-- PropTypes (Required for Recharts) -->
+    <script crossorigin src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+    
+    <!-- Recharts for Data Visualization -->
+    <script crossorigin src="https://unpkg.com/recharts@2.12.0/umd/Recharts.min.js"></script>
+    
+    <!-- Babel for on-the-fly JSX compilation -->
+    <script crossorigin src="https://unpkg.com/@babel/standalone@7.23.9/babel.min.js"></script>
+    
+    <style>
+        body { 
+            font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+            background-color: #f9fafb; 
+        }
+        .material-icons { 
+            vertical-align: middle; 
+            line-height: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Your custom Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDbi0J9HwoJ656Et6OYCdLpcea2t2_8vRU",
+            authDomain: "equitrack-23164.firebaseapp.com",
+            projectId: "equitrack-23164",
+            storageBucket: "equitrack-23164.firebasestorage.app",
+            messagingSenderId: "1087582398715",
+            appId: "1:1087582398715:web:f356715491f3366dd0285e",
+            measurementId: "G-6KK0BLBHCT"
+        };
+
+        try {
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+
+            // Expose Firebase tools to the global window object so React can use them safely
+            window.firebaseAPI = {
+                auth, db, signInAnonymously, onAuthStateChanged, doc, setDoc, onSnapshot
+            };
+        } catch (error) {
+            console.error("Firebase Initialization Error:", error);
+            window.firebaseError = error.message;
+        } finally {
+            // Always notify React that we attempted to load Firebase, even if it failed in the sandbox
+            window.firebaseReady = true;
+            window.dispatchEvent(new Event('firebase-ready'));
+        }
+    </script>
+
+    <script type="text/babel">
+        // 1. Safe extraction of dependencies
+        const { useState, useEffect, useMemo } = React;
+        const Recharts = window.Recharts || {};
+        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } = Recharts;
+
+        // 2. Error Boundary to prevent "White Screen of Death"
+        class ErrorBoundary extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false, error: null };
+            }
+            static getDerivedStateFromError(error) {
+                return { hasError: true, error };
+            }
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+                            <div className="bg-white p-8 rounded-2xl shadow-xl max-w-lg w-full border border-red-100">
+                                <div className="text-red-500 mb-4 flex justify-center"><span className="material-icons text-5xl">error</span></div>
+                                <h1 className="text-xl font-bold text-gray-900 text-center mb-2">Something went wrong</h1>
+                                <p className="text-gray-500 text-sm text-center mb-6">The application encountered an unexpected error.</p>
+                                <pre className="bg-gray-100 p-4 rounded-xl text-xs overflow-auto text-red-600 max-h-48 border border-gray-200">
+                                    {this.state.error?.toString()}
+                                </pre>
+                            </div>
+                        </div>
+                    );
+                }
+                return this.props.children;
+            }
+        }
+        
+        const INITIAL_INVESTORS = [
+            { id: 1, name: 'Alex Johnson', balance: 0, share: 25, avatar: 'https://placehold.co/100x100/10B981/ffffff?text=AJ' },
+            { id: 2, name: 'Sarah Williams', balance: 0, share: 25, avatar: 'https://placehold.co/100x100/3B82F6/ffffff?text=SW' },
+            { id: 3, name: 'Michael Chen', balance: 0, share: 25, avatar: 'https://placehold.co/100x100/F59E0B/ffffff?text=MC' },
+            { id: 4, name: 'Emma Davis', balance: 0, share: 25, avatar: 'https://placehold.co/100x100/8B5CF6/ffffff?text=ED' },
+        ];
+
+        const INITIAL_TRANSACTIONS = [
+            { id: 't1', date: new Date().toISOString(), type: 'system_income', amount: 0, description: 'Project Setup Complete', investorId: null }
+        ];
+
+        function Dashboard() {
+            // Default view set to 'admin'
+            const [view, setView] = useState('admin');
+            const [activeInvestorId, setActiveInvestorId] = useState(1);
+            const [investors, setInvestors] = useState(INITIAL_INVESTORS);
+            const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS);
+            
+            // Modals & States
+            const [showClearConfirm, setShowClearConfirm] = useState(false);
+            const [newInvestorName, setNewInvestorName] = useState('');
+            const [newInvestorShare, setNewInvestorShare] = useState('');
+            const [editingInvestor, setEditingInvestor] = useState(null);
+
+            // Firebase Integration State
+            const [user, setUser] = useState(null);
+            const [authError, setAuthError] = useState(null);
+
+            useEffect(() => {
+                if (!window.firebaseAPI) return;
+                const { auth, signInAnonymously, onAuthStateChanged } = window.firebaseAPI;
+                
+                const initAuth = async () => {
+                    try {
+                        await signInAnonymously(auth);
+                    } catch (error) {
+                        console.warn("Auth initialization warning (Sandbox environment):", error);
+                        setAuthError("Database sync is offline. You might be in a preview sandbox. Deploy to Netlify to enable saving.");
+                    }
+                };
+                initAuth();
+                
+                const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+                    if (currentUser) setUser(currentUser);
+                });
+                return () => unsubscribe();
+            }, []);
+
+            useEffect(() => {
+                if (!user || !window.firebaseAPI) return;
+                const { db, doc, onSnapshot, setDoc } = window.firebaseAPI;
+                const docRef = doc(db, 'artifacts', 'equitrack', 'public', 'data', 'store', 'state');
+                
+                const unsubscribe = onSnapshot(docRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        if (data.investors) setInvestors(data.investors);
+                        if (data.transactions) setTransactions(data.transactions);
+                    } else {
+                        setDoc(docRef, { investors: INITIAL_INVESTORS, transactions: INITIAL_TRANSACTIONS });
+                    }
+                }, (err) => console.error(err));
+                return () => unsubscribe();
+            }, [user]);
+
+            const syncToFirebase = async (newInvestors, newTransactions) => {
+                if (!user || !window.firebaseAPI) {
+                    setInvestors(newInvestors);
+                    setTransactions(newTransactions);
+                    return;
+                }
+                try {
+                    const { db, doc, setDoc } = window.firebaseAPI;
+                    const docRef = doc(db, 'artifacts', 'equitrack', 'public', 'data', 'store', 'state');
+                    await setDoc(docRef, {
+                        investors: newInvestors,
+                        transactions: newTransactions
+                    });
+                } catch (err) {
+                    showNotification("Failed to save data online", "error");
+                }
+            };
+
+            const [adminAction, setAdminAction] = useState('charge'); 
+            const [amount, setAmount] = useState('');
+            const [selectedInvestor, setSelectedInvestor] = useState(1);
+            const [description, setDescription] = useState('');
+            const [customDate, setCustomDate] = useState('');
+            const [notification, setNotification] = useState(null);
+
+            const totalCompanyBalance = useMemo(() => {
+                return investors.reduce((sum, inv) => sum + inv.balance, 0);
+            }, [investors]);
+
+            const totalIncomeGenerated = useMemo(() => {
+                return transactions
+                    .filter(t => t.type === 'company_income')
+                    .reduce((sum, t) => sum + t.amount, 0);
+            }, [transactions]);
+
+            const showNotification = (message, type = 'success') => {
+                setNotification({ message, type });
+                setTimeout(() => setNotification(null), 3000);
+            };
+
+            const handleTransaction = (e) => {
+                e.preventDefault();
+                if (!amount || isNaN(amount) || Number(amount) <= 0) {
+                    showNotification('Please enter a valid amount', 'error');
+                    return;
+                }
+
+                const numAmount = Number(amount);
+                let txDate = customDate ? new Date(customDate) : new Date();
+
+                const newTx = {
+                    id: Date.now().toString(),
+                    date: txDate.toISOString(),
+                    amount: numAmount,
+                    description: description || getDefaultDescription(adminAction, numAmount),
+                };
+
+                let updatedInvestors = [...investors];
+
+                try {
+                    switch (adminAction) {
+                        case 'charge':
+                            newTx.type = 'daily_charge';
+                            newTx.investorId = null;
+                            updatedInvestors = updatedInvestors.map(inv => ({
+                                ...inv,
+                                balance: inv.balance - numAmount
+                            }));
+                            break;
+                        case 'pay':
+                            newTx.type = 'investor_payment';
+                            newTx.investorId = Number(selectedInvestor);
+                            updatedInvestors = updatedInvestors.map(inv => 
+                                inv.id === Number(selectedInvestor) 
+                                    ? { ...inv, balance: inv.balance + numAmount } 
+                                    : inv
+                            );
+                            break;
+                        case 'income':
+                            newTx.type = 'company_income';
+                            newTx.investorId = null;
+                            updatedInvestors = updatedInvestors.map(inv => ({
+                                ...inv,
+                                balance: inv.balance + (numAmount * (Number(inv.share) || 0) / 100)
+                            }));
+                            break;
+                        case 'withdraw':
+                            newTx.type = 'investor_withdrawal';
+                            newTx.investorId = Number(selectedInvestor);
+                            updatedInvestors = updatedInvestors.map(inv => 
+                                inv.id === Number(selectedInvestor) 
+                                    ? { ...inv, balance: inv.balance - numAmount } 
+                                    : inv
+                            );
+                            break;
+                        default: return;
+                    }
+
+                    // Sort chronologically in case a custom past date was used
+                    const updatedTransactions = [newTx, ...transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+                    syncToFirebase(updatedInvestors, updatedTransactions);
+                    
+                    setAmount(''); setDescription(''); setCustomDate('');
+                    showNotification(`Transaction successful!`);
+                } catch (error) {
+                    showNotification(error.message, 'error');
+                }
+            };
+
+            const getDefaultDescription = (action, amt) => {
+                switch (action) {
+                    case 'charge': return `Daily requirement charge of $${amt}`;
+                    case 'pay': return `Payment received`;
+                    case 'income': return `Company income distribution`;
+                    case 'withdraw': return `Funds withdrawal`;
+                    default: return 'Transaction';
+                }
+            };
+
+            const formatCurrency = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+            const formatDate = (isoString) => new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(isoString));
+
+            const getChartData = () => {
+                let currentBalances = investors.map(i => ({ id: i.id, name: i.name, bal: 0 }));
+                const chartData = [];
+                const sortedTx = [...transactions].reverse();
+                
+                sortedTx.forEach((tx, index) => {
+                    if (tx.type === 'daily_charge') {
+                        currentBalances.forEach(b => b.bal -= tx.amount);
+                    } else if (tx.type === 'company_income') {
+                        currentBalances.forEach(b => {
+                            const inv = investors.find(i => i.id === b.id);
+                            b.bal += (tx.amount * (Number(inv?.share) || 0) / 100);
+                        });
+                    } else if (tx.type === 'investor_payment' || tx.type === 'investor_withdrawal') {
+                        const b = currentBalances.find(x => x.id === tx.investorId);
+                        if (b) b.bal += (tx.type === 'investor_payment' ? tx.amount : -tx.amount);
+                    }
+                    
+                    if (tx.type !== 'system_income') {
+                        const dataPoint = { name: `Tx ${index}`, date: formatDate(tx.date) };
+                        currentBalances.forEach(b => { dataPoint[b.name] = b.bal; });
+                        chartData.push(dataPoint);
+                    }
+                });
+                return chartData;
+            };
+
+            const handleClearData = () => {
+                const resetInvestors = investors.map(inv => ({ ...inv, balance: 0 }));
+                syncToFirebase(resetInvestors, INITIAL_TRANSACTIONS);
+                setShowClearConfirm(false);
+                showNotification('All data has been cleared');
+            };
+
+            const handleDeleteTransaction = (txId) => {
+                const tx = transactions.find(t => t.id === txId);
+                if (!tx) return;
+
+                let updatedInvestors = [...investors];
+                if (tx.type === 'daily_charge') {
+                    updatedInvestors = updatedInvestors.map(inv => ({ ...inv, balance: inv.balance + tx.amount }));
+                } else if (tx.type === 'investor_payment') {
+                    updatedInvestors = updatedInvestors.map(inv => inv.id === tx.investorId ? { ...inv, balance: inv.balance - tx.amount } : inv);
+                } else if (tx.type === 'company_income') {
+                    updatedInvestors = updatedInvestors.map(inv => ({...inv, balance: inv.balance - (tx.amount * (Number(inv.share) || 0) / 100)}));
+                } else if (tx.type === 'investor_withdrawal') {
+                    updatedInvestors = updatedInvestors.map(inv => inv.id === tx.investorId ? { ...inv, balance: inv.balance + tx.amount } : inv);
+                }
+
+                const newTransactions = transactions.filter(t => t.id !== txId);
+                syncToFirebase(updatedInvestors, newTransactions);
+                showNotification('Transaction removed and balances restored');
+            };
+
+            const renderHeader = () => (
+                <header className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+                    {authError && (
+                        <div className="bg-yellow-50 px-4 py-2 text-sm text-yellow-800 border-b border-yellow-200 text-center flex items-center justify-center gap-2">
+                            <span className="material-icons text-sm">warning</span> {authError}
+                        </div>
+                    )}
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex justify-between h-16 items-center">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-blue-600 p-2 rounded-lg text-white">
+                                    <span className="material-icons">trending_up</span>
+                                </div>
+                                <span className="font-bold text-xl text-gray-900 tracking-tight">EquiTrack</span>
+                            </div>
+                            
+                            <div className="flex items-center gap-4">
+                                <div className="flex bg-gray-100 p-1 rounded-lg">
+                                    <button 
+                                        onClick={() => setView('admin')}
+                                        className={`px-4 py-1.5 flex items-center gap-1.5 text-sm font-medium rounded-md transition-colors ${view === 'admin' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        <span className="material-icons text-sm">settings</span> Admin Panel
+                                    </button>
+                                    <button 
+                                        onClick={() => setView('investor')}
+                                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${view === 'investor' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        Investor View
+                                    </button>
+                                </div>
+                                
+                                {view === 'investor' && (
+                                    <select 
+                                        value={activeInvestorId}
+                                        onChange={(e) => setActiveInvestorId(Number(e.target.value))}
+                                        className="text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                    >
+                                        {investors.map(inv => (
+                                            <option key={inv.id} value={inv.id}>View as: {inv.name}</option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </header>
+            );
+
+            const renderNotification = () => {
+                if (!notification) return null;
+                return (
+                    <div className={`fixed bottom-4 right-4 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white font-medium transition-all duration-300 transform translate-y-0 ${notification.type === 'error' ? 'bg-red-500' : 'bg-emerald-500'}`}>
+                        <span className="material-icons text-xl">{notification.type === 'error' ? 'error_outline' : 'check_circle'}</span>
+                        {notification.message}
+                    </div>
+                );
+            }
+
+            const renderAdminView = () => (
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+                    {/* Manage Investors */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+                        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex flex-wrap justify-between items-center gap-4">
+                            <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                                <span className="material-icons text-gray-500 text-xl">group</span> Manage Investors & Shares
+                            </h2>
+                            <div className="flex items-center gap-3">
+                                <span className="text-sm font-medium bg-blue-100 text-blue-700 px-3 py-1 rounded-full border border-blue-200">
+                                    Total Shares: {investors.reduce((sum, inv) => sum + Number(inv.share || 0), 0)}%
+                                </span>
+                                <button 
+                                    onClick={() => setShowClearConfirm(true)}
+                                    className="flex items-center gap-1.5 text-sm font-medium bg-red-100 text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-200 transition-colors border border-red-200"
+                                >
+                                    <span className="material-icons text-sm">delete</span> Reset Data
+                                </button>
+                            </div>
+                        </div>
+                        <div className="p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                                {investors.map(inv => (
+                                    <div key={inv.id} className="border border-gray-200 rounded-lg p-4 relative bg-white hover:border-blue-300 transition-colors shadow-sm">
+                                        {editingInvestor === inv.id ? (
+                                            <div className="space-y-3">
+                                                <input type="text" defaultValue={inv.name} id={`edit-name-${inv.id}`} className="w-full text-sm border border-gray-300 rounded p-1.5" placeholder="Name"/>
+                                                <div className="flex items-center gap-2">
+                                                    <input type="number" defaultValue={inv.share} id={`edit-share-${inv.id}`} className="w-full text-sm border border-gray-300 rounded p-1.5" placeholder="Share %"/>
+                                                    <span className="text-sm text-gray-500">%</span>
+                                                </div>
+                                                <div className="flex gap-2 pt-2">
+                                                    <button onClick={() => {
+                                                        const newName = document.getElementById(`edit-name-${inv.id}`).value;
+                                                        const newShare = document.getElementById(`edit-share-${inv.id}`).value;
+                                                        const updated = investors.map(i => i.id === inv.id ? {...i, name: newName, share: Number(newShare)} : i);
+                                                        syncToFirebase(updated, transactions);
+                                                        setEditingInvestor(null);
+                                                    }} className="flex-1 flex justify-center items-center bg-emerald-100 text-emerald-700 p-1.5 rounded hover:bg-emerald-200"><span className="material-icons text-base">save</span></button>
+                                                    <button onClick={() => setEditingInvestor(null)} className="flex-1 flex justify-center items-center bg-gray-100 text-gray-700 p-1.5 rounded hover:bg-gray-200">Cancel</button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className="font-medium text-gray-900 truncate pr-2">{inv.name}</div>
+                                                    <button onClick={() => setEditingInvestor(inv.id)} className="text-gray-400 hover:text-blue-600 flex-shrink-0"><span className="material-icons text-base">edit</span></button>
+                                                </div>
+                                                <div className="text-2xl font-bold text-blue-600">{inv.share}%</div>
+                                                <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Share</div>
+                                            </>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            
+                            {/* Add Investor Form */}
+                            <div className="bg-gray-50 rounded-xl p-5 border border-gray-200 shadow-sm">
+                                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                    <span className="material-icons text-blue-600 text-base">add</span> Add New Investor
+                                </h3>
+                                <div className="flex flex-wrap items-end gap-4">
+                                    <div className="flex-1 min-w-[200px]">
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Full Name</label>
+                                        <input type="text" value={newInvestorName} onChange={(e) => setNewInvestorName(e.target.value)} className="w-full text-sm border-gray-300 rounded-lg border p-2" placeholder="e.g. John Doe"/>
+                                    </div>
+                                    <div className="w-32">
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Share (%)</label>
+                                        <div className="relative">
+                                            <input type="number" value={newInvestorShare} onChange={(e) => setNewInvestorShare(e.target.value)} className="w-full text-sm border-gray-300 rounded-lg border p-2 pr-8" placeholder="0"/>
+                                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none"><span className="text-gray-500 sm:text-sm">%</span></div>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => {
+                                        if(!newInvestorName || !newInvestorShare) { showNotification("Please provide both name and share percentage", "error"); return; }
+                                        const initials = newInvestorName.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase();
+                                        const newInv = { id: Date.now(), name: newInvestorName, balance: 0, share: Number(newInvestorShare), avatar: `https://placehold.co/100x100/6366F1/ffffff?text=${initials}` };
+                                        syncToFirebase([...investors, newInv], transactions);
+                                        setNewInvestorName(''); setNewInvestorShare('');
+                                        showNotification("Investor added successfully");
+                                    }} className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Add Investor</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
+                            <div className="p-3 bg-blue-50 rounded-xl text-blue-600"><span className="material-icons text-3xl">account_balance_wallet</span></div>
+                            <div><p className="text-sm font-medium text-gray-500">Net Partner Balances</p><h3 className={`text-2xl font-bold ${totalCompanyBalance >= 0 ? 'text-gray-900' : 'text-red-600'}`}>{formatCurrency(totalCompanyBalance)}</h3></div>
+                        </div>
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
+                            <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600"><span className="material-icons text-3xl">trending_up</span></div>
+                            <div><p className="text-sm font-medium text-gray-500">Total Project Income</p><h3 className="text-2xl font-bold text-gray-900">{formatCurrency(totalIncomeGenerated)}</h3></div>
+                        </div>
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
+                            <div className="p-3 bg-purple-50 rounded-xl text-purple-600"><span className="material-icons text-3xl">group</span></div>
+                            <div><p className="text-sm font-medium text-gray-500">Active Investors</p><h3 className="text-2xl font-bold text-gray-900">{investors.length}</h3></div>
+                        </div>
+                    </div>
+
+                    {/* Transactions & Charts */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="lg:col-span-1 space-y-6">
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                                    <h2 className="font-semibold text-gray-900 flex items-center gap-2"><span className="material-icons text-gray-500 text-xl">settings</span> New Transaction</h2>
+                                </div>
+                                <div className="p-6">
+                                    <form onSubmit={handleTransaction} className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Action Type</label>
+                                            <select value={adminAction} onChange={(e) => setAdminAction(e.target.value)} className="w-full border-gray-300 border rounded-lg p-2 sm:text-sm bg-white">
+                                                <option value="charge">Require Daily Payment (All)</option>
+                                                <option value="pay">Record Investor Payment</option>
+                                                <option value="income">Add Company Income (Split)</option>
+                                                <option value="withdraw">Record Investor Withdrawal</option>
+                                            </select>
+                                        </div>
+                                        {(adminAction === 'pay' || adminAction === 'withdraw') && (
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Select Investor</label>
+                                                <select value={selectedInvestor} onChange={(e) => setSelectedInvestor(e.target.value)} className="w-full border-gray-300 border rounded-lg p-2 sm:text-sm bg-white">
+                                                    {investors.map(inv => <option key={inv.id} value={inv.id}>{inv.name}</option>)}
+                                                </select>
+                                            </div>
+                                        )}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
+                                            <div className="relative rounded-md shadow-sm border border-gray-300">
+                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><span className="text-gray-500 sm:text-sm">$</span></div>
+                                                <input type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="block w-full pl-7 sm:text-sm rounded-lg py-2" placeholder="0.00"/>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
+                                            <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} className="block w-full sm:text-sm border border-gray-300 rounded-lg py-2 px-3" placeholder="e.g. Server costs"/>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Transaction Date (Optional)</label>
+                                            <input type="datetime-local" value={customDate} onChange={(e) => setCustomDate(e.target.value)} className="block w-full sm:text-sm border border-gray-300 rounded-lg py-2 px-3 bg-white"/>
+                                            <p className="mt-1 text-xs text-gray-500">Leave blank for current time.</p>
+                                        </div>
+                                        <button type="submit" className="w-full flex justify-center py-2.5 px-4 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 mt-2">Process Transaction</button>
+                                    </form>
+                                </div>
+                            </div>
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50"><h2 className="font-semibold text-gray-900">Current Balances</h2></div>
+                                <ul className="divide-y divide-gray-100">
+                                    {investors.map(inv => (
+                                        <li key={inv.id} className="p-4 flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <img src={inv.avatar} alt={inv.name} className="h-10 w-10 rounded-full border border-gray-200" />
+                                                <div><p className="text-sm font-medium text-gray-900">{inv.name}</p></div>
+                                            </div>
+                                            <div className={`text-sm font-bold px-3 py-1 rounded-full ${inv.balance > 0 ? 'bg-emerald-100 text-emerald-700' : inv.balance < 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>
+                                                {inv.balance > 0 ? '+' : ''}{formatCurrency(inv.balance)}
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div className="lg:col-span-2 space-y-6">
+                            {window.Recharts && (
+                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 h-96">
+                                    <h2 className="font-semibold text-gray-900 mb-4">Balance Trends</h2>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <LineChart data={getChartData()} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                                            <XAxis dataKey="name" tick={{fontSize: 12, fill: '#9ca3af'}} axisLine={false} tickLine={false} />
+                                            <YAxis tickFormatter={(val) => `$${val}`} tick={{fontSize: 12, fill: '#9ca3af'}} axisLine={false} tickLine={false} />
+                                            <Tooltip formatter={(value) => formatCurrency(value)} contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb' }} />
+                                            <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }}/>
+                                            {investors.map((inv, idx) => {
+                                                const colors = ["#10B981", "#3B82F6", "#F59E0B", "#8B5CF6", "#EC4899", "#14B8A6", "#F43F5E"];
+                                                return <Line key={inv.id} type="monotone" dataKey={inv.name} stroke={colors[idx % colors.length]} strokeWidth={2} dot={false} activeDot={{r: 6}} />;
+                                            })}
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            )}
+
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                                    <h2 className="font-semibold text-gray-900 flex items-center gap-2"><span className="material-icons text-gray-500 text-xl">history</span> Ledger History</h2>
+                                </div>
+                                <div className="overflow-x-auto max-h-96">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-white sticky top-0">
+                                            <tr>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                            {transactions.map((tx) => (
+                                                <tr key={tx.id} className="hover:bg-gray-50">
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(tx.date)}</td>
+                                                    <td className="px-6 py-4 text-sm text-gray-900">
+                                                        {tx.description}
+                                                        {tx.investorId && <span className="ml-2 text-xs text-gray-500">({investors.find(i => i.id === tx.investorId)?.name})</span>}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border bg-gray-50 text-gray-700">{tx.type.replace('_', ' ').toUpperCase()}</span>
+                                                    </td>
+                                                    <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${(tx.type === 'daily_charge' || tx.type === 'investor_withdrawal') ? 'text-red-600' : 'text-emerald-600'}`}>
+                                                        {(tx.type === 'daily_charge' || tx.type === 'investor_withdrawal') ? '-' : '+'}{formatCurrency(tx.amount)}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                        {tx.type !== 'system_income' && (
+                                                            <button onClick={() => handleDeleteTransaction(tx.id)} className="text-red-500 hover:text-red-700" title="Undo">
+                                                                <span className="material-icons text-base">delete</span>
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            const renderInvestorView = () => {
+                const myData = investors.find(i => i.id === activeInvestorId);
+                if (!myData) return null;
+                const isPositive = myData.balance > 0;
+                const isNegative = myData.balance < 0;
+                const myTransactions = transactions.filter(t => t.investorId === myData.id || t.investorId === null);
+
+                return (
+                    <div className="max-w-4xl mx-auto px-4 py-10 space-y-8">
+                        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div className="bg-gradient-to-r from-gray-900 to-gray-800 p-8 text-white flex flex-col md:flex-row items-center justify-between gap-6">
+                                <div className="flex items-center gap-5">
+                                    <img src={myData.avatar} alt={myData.name} className="h-20 w-20 rounded-full border-4 border-gray-700 bg-gray-800" />
+                                    <div><h1 className="text-3xl font-bold">{myData.name}</h1><p className="text-gray-400 mt-1">Investor Dashboard ({myData.share}%)</p></div>
+                                </div>
+                                <div className="bg-gray-800/50 p-6 rounded-2xl border border-gray-700/50 text-center min-w-[200px]">
+                                    <p className="text-gray-400 text-sm font-medium mb-1">Current Balance</p>
+                                    <h2 className={`text-4xl font-bold ${isPositive ? 'text-emerald-400' : isNegative ? 'text-red-400' : 'text-white'}`}>
+                                        {isPositive ? '+' : ''}{formatCurrency(myData.balance)}
+                                    </h2>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50"><h2 className="font-semibold text-gray-900 text-lg">Your Activity</h2></div>
+                            <div className="divide-y divide-gray-100">
+                                {myTransactions.map((tx) => {
+                                    let displayAmount = tx.amount;
+                                    let isCredit = (tx.type === 'company_income' || tx.type === 'investor_payment');
+                                    if (tx.type === 'company_income') displayAmount = (tx.amount * (Number(myData.share) || 0)) / 100;
+
+                                    return (
+                                        <div key={tx.id} className="p-5 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                                            <div className="flex items-center gap-4">
+                                                <div>
+                                                    <p className="font-medium text-gray-900">{tx.description}</p>
+                                                    <p className="text-xs text-gray-500 mt-0.5">{formatDate(tx.date)}</p>
+                                                </div>
+                                            </div>
+                                            <div className={`font-bold ${isCredit ? 'text-emerald-600' : 'text-red-600'}`}>
+                                                {isCredit ? '+' : '-'}{formatCurrency(displayAmount)}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-gray-50 text-gray-900 pb-12">
+                    {renderHeader()}
+                    <main>{view === 'admin' ? renderAdminView() : renderInvestorView()}</main>
+                    {renderNotification()}
+                    
+                    {showClearConfirm && (
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden p-6 text-center">
+                                <h2 className="text-xl font-bold text-gray-900 mb-2">Clear All Data?</h2>
+                                <p className="text-gray-500 text-sm mb-6">Are you sure? This cannot be undone.</p>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setShowClearConfirm(false)} className="flex-1 py-2 px-4 border border-gray-300 rounded-xl">Cancel</button>
+                                    <button onClick={handleClearData} className="flex-1 py-2 px-4 bg-red-600 rounded-xl text-white">Yes, Clear All</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function App() {
+            const [ready, setReady] = useState(window.firebaseReady);
+            const [errorMsg, setErrorMsg] = useState(window.firebaseError);
+            
+            useEffect(() => {
+                const handleReady = () => {
+                    setReady(true);
+                    if (window.firebaseError) setErrorMsg(window.firebaseError);
+                };
+                window.addEventListener('firebase-ready', handleReady);
+                return () => window.removeEventListener('firebase-ready', handleReady);
+            }, []);
+
+            if (!ready && !errorMsg) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                        <div className="flex flex-col items-center gap-4">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                            <p className="text-gray-500 font-medium">Connecting to Database...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <ErrorBoundary>
+                    <Dashboard />
+                </ErrorBoundary>
+            );
+        }
+
+        const domContainer = document.getElementById('root');
+        if (domContainer) {
+            const root = ReactDOM.createRoot(domContainer);
+            root.render(<App />);
+        } else {
+            console.error("Critical: Could not find root element to mount React.");
+        }
+    </script>
+</body>
+</html>
+
+```
